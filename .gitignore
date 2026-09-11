@@ -1,0 +1,28 @@
+# Environment variables / secrets
+.env
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Logs
+logs/
+*.log
+*.log-*
+*.gz
+
+# Session / authentication data
+*.session
+
+# Backup files
+*.bak
+*.bak2
+*.bak3
+
+# OS files
+.DS_Store
+Thumbs.db
