@@ -1,31 +1,26 @@
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚀 UPCOMING IT INTERVIEW?
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━
+🚀 **UPCOMING IT INTERVIEW?**
+━━━━━━━━━━━━━━━━━━━━━━
 
-Need Professional Live Interview Support?
+🎯 **Professional IT Interview Support**
 
-💼 Technologies Covered
-
-☁️ AWS | Azure | GCP
-⚙️ DevOps | SRE | Linux
+💼 **Technologies:**
+☁️ AWS | Azure | GCP | DevOps | SRE
 ☸️ Kubernetes | Docker | Terraform | Jenkins
-💻 Java | Spring Boot | Python | .NET | Node.js
-🌐 React | Angular | UI
+💻 Java | Python | .NET | Node.js
 🗄 SQL | Oracle | PostgreSQL | MongoDB
 📊 Data Engineering | Snowflake | Databricks | Spark
-🧪 Manual QA | Automation | Selenium | Cypress
-📈 Power BI | Tableau
+🧪 QA | Selenium | Cypress | Power BI | Tableau
 💼 SAP | Salesforce | ServiceNow
 
-✅ Live Interview Support
 ✅ Experienced Professionals
+✅ Live Interview Support
 ✅ Demo Before Booking
-✅ Affordable Pricing
-✅ 100% Confidential
+✅ Affordable & Confidential
 
 🌍 USA 🇺🇸 | UK 🇬🇧 | Canada 🇨🇦 | Australia 🇦🇺 | India 🇮🇳
 
-📲 WhatsApp
-+91 8074162686
+📲 **DM:** +91 8074162686
 
-💬 Message: BOOK
+#ITInterview #InterviewSupport #TechnicalInterview #DevOps #AWS #SRE #Kubernetes #TechJobs
+━━━━━━━━━━━━━━━━━━━━━━
