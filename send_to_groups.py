@@ -179,6 +179,7 @@ VALID_MESSAGE_TEMPLATES = [
     "message3.txt",
     "message4.txt",
     "message5.txt",
+    "message6.txt",
 ]
 
 
