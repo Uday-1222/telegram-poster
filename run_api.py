@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import subprocess
 import os
 from dotenv import load_dotenv
@@ -28,11 +29,13 @@ API_TRIGGER_KEY = os.getenv("API_TRIGGER_KEY")
 app = Flask(__name__)
 
 
-POSTING_START_HOUR = 8
-POSTING_STOP_HOUR = 2
+POSTING_START_HOUR = 11
+POSTING_STOP_HOUR = 5
+INDIA_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
-def posting_allowed():
-    hour = datetime.now().hour
+def posting_allowed(current_time=None):
+    current_time = current_time or datetime.now(INDIA_TIMEZONE)
+    hour = current_time.hour
 
     if POSTING_STOP_HOUR <= hour < POSTING_START_HOUR:
         return False
@@ -81,7 +84,7 @@ def send_telegram():
     if not posting_allowed():
         return jsonify({
             "status": "skipped",
-            "message": "Posting window closed (02:00 AM - 08:00 AM IST)"
+            "message": "Posting window closed (05:00 AM - 11:00 AM IST)"
         }), 200    
 
     data = request.get_json(silent=True) or {}

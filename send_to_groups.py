@@ -262,7 +262,9 @@ def load_message():
     except Exception:
         pass
 
-    return content, rel_path
+    template_contents = {template_content for _, _, template_content in usable_templates}
+
+    return content, rel_path, template_contents
 
 
 async def main():
@@ -271,7 +273,7 @@ async def main():
 
     # Validate first, lock second
     groups = load_groups(groups_file)
-    message, message_filename = load_message()
+    message, message_filename, template_contents = load_message()
 
     acquire_lock(batch_name)
 
@@ -312,7 +314,7 @@ async def main():
                     last = latest[0]
                     if (
                         last.sender_id == my_id and
-                        (last.message or "").strip() == message.strip()
+                        (last.message or "").strip() in template_contents
                     ):
                         print(f"SKIPPED {group}: Previous message is still the latest.")
                         log_status(
