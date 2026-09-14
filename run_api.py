@@ -29,18 +29,22 @@ API_TRIGGER_KEY = os.getenv("API_TRIGGER_KEY")
 app = Flask(__name__)
 
 
-POSTING_START_HOUR = 11
-POSTING_STOP_HOUR = 5
 INDIA_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 def posting_allowed(current_time=None):
     current_time = current_time or datetime.now(INDIA_TIMEZONE)
     hour = current_time.hour
 
-    if POSTING_STOP_HOUR <= hour < POSTING_START_HOUR:
-        return False
+    # Window 1: 07:00 AM – 10:59 AM IST
+    if 7 <= hour < 11:
+        return True
 
-    return True
+    # Window 2: 05:00 PM – 05:59 AM IST (crosses midnight)
+    if hour >= 17 or hour < 6:
+        return True
+
+    # Blocked: 06:00–06:59 AM and 11:00 AM–04:59 PM
+    return False
 
 def resolve_batch_file(batch_name):
     if not batch_name:
@@ -84,7 +88,7 @@ def send_telegram():
     if not posting_allowed():
         return jsonify({
             "status": "skipped",
-            "message": "Posting window closed (05:00 AM - 11:00 AM IST)"
+            "message": "Posting window closed. Allowed: 07:00-10:59 IST and 17:00-05:59 IST"
         }), 200    
 
     data = request.get_json(silent=True) or {}
