@@ -173,63 +173,103 @@ def load_groups(groups_file):
     return groups
 
 
-VALID_MESSAGE_TEMPLATES = [
-    "message1.txt",
-    "message2.txt",
-    "message3.txt",
-    "message4.txt",
-    "message5.txt",
-    "message6.txt",
+# Ordered rotation: 7 text templates + 2 banner images = 9 entries.
+# Paths are relative to MESSAGE_DIR (/opt/telegram-poster/messages/).
+ROTATION_ITEMS = [
+    {"type": "text", "file": "message1.txt"},
+    {"type": "text", "file": "message2.txt"},
+    {"type": "text", "file": "message3.txt"},
+    {"type": "text", "file": "message4.txt"},
+    {"type": "text", "file": "message5.txt"},
+    {"type": "text", "file": "message6.txt"},
+    {"type": "text", "file": "message7.txt"},
+    {"type": "image", "file": "banners/time.variant-1.png"},
+    {"type": "image", "file": "banners/time.variant-2.png"},
 ]
 
 
-def get_message_templates():
-    if not os.path.isdir(MESSAGE_DIR):
-        os.makedirs(MESSAGE_DIR, exist_ok=True)
+def get_rotation_entries():
+    """Validate and load all rotation entries from ROTATION_ITEMS.
 
-    message_files = []
+    Returns a list of dicts, each with:
+      type       - "text" or "image"
+      rel_path   - path relative to MESSAGE_DIR (for logging)
+      full_path  - absolute path on disk
+      content    - file text content (text entries only, None for images)
+    """
+    entries = []
 
-    for filename in sorted(os.listdir(MESSAGE_DIR)):
-        if filename == "current_message.txt" or filename == "message.txt":
-            continue
-        if filename not in VALID_MESSAGE_TEMPLATES:
-            continue
-        if not filename.lower().endswith(".txt"):
-            continue
+    for item in ROTATION_ITEMS:
+        rel_path = item["file"]
+        full_path = os.path.join(MESSAGE_DIR, rel_path)
 
-        full_path = os.path.join(MESSAGE_DIR, filename)
         if not os.path.isfile(full_path):
+            print(f"WARNING: Skipping missing rotation file: {rel_path}")
             continue
 
-        rel_path = os.path.relpath(full_path, MESSAGE_DIR).replace(os.sep, "/")
-        message_files.append((rel_path, full_path))
+        if item["type"] == "text":
+            try:
+                with open(full_path, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                if not content:
+                    print(f"WARNING: Skipping empty text template: {rel_path}")
+                    continue
+            except Exception as exc:
+                print(f"WARNING: Skipping unreadable text template: {rel_path} ({exc})")
+                continue
+            entries.append({
+                "type": "text",
+                "rel_path": rel_path,
+                "full_path": full_path,
+                "content": content,
+            })
+        else:
+            # Image entry — no caption, no content to read
+            entries.append({
+                "type": "image",
+                "rel_path": rel_path,
+                "full_path": full_path,
+                "content": None,
+            })
 
-    return sorted(message_files, key=lambda item: item[0])
+    return entries
 
 
-def load_message():
-    message_templates = get_message_templates()
+def advance_rotation_state(state_file, next_index):
+    """Write next_index to state_file.  Returns True on success, False on failure.
 
-    if not message_templates:
-        print(f"ERROR: No message templates found inside {MESSAGE_DIR}")
+    Extracted so production code and tests both exercise the same function
+    rather than duplicating the write logic.
+    """
+    try:
+        with open(state_file, "w", encoding="utf-8") as f:
+            f.write(str(next_index))
+        return True
+    except Exception as write_err:
+        print(f"ERROR: Failed to advance rotation state: {write_err}")
+        return False
+
+
+def load_rotation_entry():
+    """Select the current rotation entry and return it WITHOUT advancing state.
+
+    The caller (main) is responsible for advancing the state file
+    after at least one successful delivery.
+
+    Returns: (entry_dict, selected_index, total_count, text_contents_set)
+      entry_dict       - the selected entry from get_rotation_entries()
+      selected_index   - the index that was selected
+      total_count      - total number of usable entries
+      text_contents_set - set of all text template contents (for duplicate check)
+    """
+    entries = get_rotation_entries()
+
+    if not entries:
+        print(f"ERROR: No usable rotation entries found in {MESSAGE_DIR}")
         sys.exit(1)
 
-    usable_templates = []
-    for rel_path, full_path in message_templates:
-        try:
-            with open(full_path, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-
-            if content:
-                usable_templates.append((rel_path, full_path, content))
-            else:
-                print(f"WARNING: Skipping empty message template: {rel_path}")
-        except Exception as exc:
-            print(f"WARNING: Skipping unreadable message template: {rel_path} ({exc})")
-
-    if not usable_templates:
-        print(f"ERROR: No usable message templates found inside {MESSAGE_DIR}")
-        sys.exit(1)
+    # Collect all text contents for duplicate detection (existing behavior)
+    text_contents = {e["content"] for e in entries if e["type"] == "text" and e["content"]}
 
     if not os.path.exists(MESSAGE_STATE_FILE):
         with open(MESSAGE_STATE_FILE, "w", encoding="utf-8") as f:
@@ -238,7 +278,6 @@ def load_message():
     try:
         with open(MESSAGE_STATE_FILE, "r", encoding="utf-8") as f:
             state_value = f.read().strip()
-
         current_index = int(state_value) if state_value.isdigit() else 0
     except Exception:
         print("Reset rotation state to 0")
@@ -247,24 +286,9 @@ def load_message():
     if current_index < 0:
         current_index = 0
 
-    if len(usable_templates) == 1:
-        selected_index = 0
-        next_index = 0
-    else:
-        selected_index = current_index % len(usable_templates)
-        next_index = (selected_index + 1) % len(usable_templates)
+    selected_index = current_index % len(entries)
 
-    rel_path, full_path, content = usable_templates[selected_index]
-
-    try:
-        with open(MESSAGE_STATE_FILE, "w", encoding="utf-8") as f:
-            f.write(str(next_index))
-    except Exception:
-        pass
-
-    template_contents = {template_content for _, _, template_content in usable_templates}
-
-    return content, rel_path, template_contents
+    return entries[selected_index], selected_index, len(entries), text_contents
 
 
 async def main():
@@ -273,7 +297,9 @@ async def main():
 
     # Validate first, lock second
     groups = load_groups(groups_file)
-    message, message_filename, template_contents = load_message()
+    entry, selected_index, total_count, text_contents = load_rotation_entry()
+
+    entry_label = entry["rel_path"]  # used for logging (replaces message_filename)
 
     acquire_lock(batch_name)
 
@@ -283,16 +309,18 @@ async def main():
     print("Loaded groups:")
     print(len(groups))
     print()
-    print("Using message:")
-    print(message_filename)
+    print(f"Using rotation entry [{selected_index + 1}/{total_count}]:")
+    print(f"  type: {entry['type']}")
+    print(f"  file: {entry_label}")
     print()
     print("Delay:")
     print(f"{MIN_DELAY}-{MAX_DELAY} seconds")
     print("Starting Telegram posting job...")
 
-    log_status(batch_name, "START", "-", f"Starting batch run with {len(groups)} groups", message_filename)
+    log_status(batch_name, "START", "-", f"Starting batch run with {len(groups)} groups", entry_label)
 
     client = None
+    state_advanced = False  # advance rotation only after first successful delivery
 
     try:
         client = TelegramClient(
@@ -308,33 +336,54 @@ async def main():
 
         for idx, group in enumerate(groups, start=1):
             try:
-                print(f"[{idx}/{len(groups)}] Checking latest message in {group} ...")
-                latest = await client.get_messages(group, limit=1)
-                if latest:
-                    last = latest[0]
-                    if (
-                        last.sender_id == my_id and
-                        (last.message or "").strip() in template_contents
-                    ):
-                        print(f"SKIPPED {group}: Previous message is still the latest.")
-                        log_status(
-                            batch_name,
-                            "SKIPPED",
-                            group,
-                            "Previous message is still the latest",
-                            message_filename
-                        )
-                        continue
+                # --- Duplicate detection ---
+                if entry["type"] == "text":
+                    # Existing text duplicate check: skip if my latest message
+                    # in the group matches any known text template.
+                    print(f"[{idx}/{len(groups)}] Checking latest message in {group} ...")
+                    latest = await client.get_messages(group, limit=1)
+                    if latest:
+                        last = latest[0]
+                        if (
+                            last.sender_id == my_id and
+                            (last.message or "").strip() in text_contents
+                        ):
+                            print(f"SKIPPED {group}: Previous message is still the latest.")
+                            log_status(
+                                batch_name,
+                                "SKIPPED",
+                                group,
+                                "Previous message is still the latest",
+                                entry_label
+                            )
+                            continue
+                else:
+                    # LIMITATION: Image duplicate detection is not implemented.
+                    # Reliable server-side media-ID comparison would require
+                    # caching the file_id of each sent image, which is beyond
+                    # the scope of this change. Images are always sent.
+                    pass
 
+                # --- Send ---
                 print(f"[{idx}/{len(groups)}] Sending to {group} ...")
-                await client.send_message(group, message)
+
+                if entry["type"] == "image":
+                    await client.send_file(group, entry["full_path"])
+                else:
+                    await client.send_message(group, entry["content"])
+
                 print(f"SUCCESS: sent to {group}")
-                log_status(batch_name, "SUCCESS", group, "Message sent", message_filename)
+                log_status(batch_name, "SUCCESS", group, "Message sent", entry_label)
+
+                # Advance rotation state only on first confirmed delivery
+                if not state_advanced:
+                    next_index = (selected_index + 1) % total_count
+                    state_advanced = advance_rotation_state(MESSAGE_STATE_FILE, next_index)
 
             except FloodWaitError as e:
                 msg = f"Telegram requested wait of {e.seconds} seconds. Skipping this group for this cycle."
                 print(f"SKIPPED {group}: {msg}")
-                log_status(batch_name, "SKIPPED", group, msg, message_filename)
+                log_status(batch_name, "SKIPPED", group, msg, entry_label)
                 continue
 
             except Exception as e:
@@ -343,11 +392,11 @@ async def main():
                 if "A wait of" in error_text and "is required before sending another message in this chat" in error_text:
                     msg = f"Telegram chat cooldown triggered: {error_text}"
                     print(f"SKIPPED {group}: {msg}")
-                    log_status(batch_name, "SKIPPED", group, msg, message_filename)
+                    log_status(batch_name, "SKIPPED", group, msg, entry_label)
                     continue
 
                 print(f"FAILED for {group}: {e}")
-                log_status(batch_name, "FAILED", group, error_text, message_filename)
+                log_status(batch_name, "FAILED", group, error_text, entry_label)
                 continue
 
             if idx < len(groups):
@@ -364,7 +413,7 @@ async def main():
 
     release_lock()
 
-    log_status(batch_name, "END", "-", "Batch run finished", message_filename)
+    log_status(batch_name, "END", "-", "Batch run finished", entry_label)
     print("Posting job finished.")
 
 
